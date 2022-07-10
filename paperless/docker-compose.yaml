@@ -1,0 +1,42 @@
+version: "3"
+
+volumes:
+  paperless-ngx_data:
+  paperless-ngx_media:
+  redis_pl:
+
+services:
+  paperless-ngx:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless-ngx
+    restart: unless-stopped
+    depends_on:
+      - redis_pl
+    ports:
+      - 8000:8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - paperless-ngx_data:/usr/src/paperless/data
+      - paperless-ngx_media:/usr/src/paperless/media
+      - ./paperless-ngx/export:/usr/src/paperless/export
+      - ./paperless-ngx/consume:/usr/src/paperless/consume
+    env_file: .env
+    environment:
+      PAPERLESS_REDIS: redis://redis_pl
+    labels:
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true
+
+  redis_pl:
+    image: redis:latest
+    container_name: redis_pl
+    restart: always
+    volumes:
+      - redis_pl:/var/lib/redis
+    labels:
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true

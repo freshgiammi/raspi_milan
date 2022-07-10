@@ -1,0 +1,55 @@
+version: "3"
+
+services:
+  home-assistant:
+    container_name: home-assistant
+    image: homeassistant/raspberrypi4-homeassistant:stable
+    volumes:
+    - ./.homeassistant:/config
+    - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+    - TZ=${TZ}
+    network_mode: host
+    privileged: true
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      ## Routers Rules
+      - traefik.http.routers.hassio.rule=Host(`${HASSIOHOST}`)
+      - traefik.http.routers.hassio.entrypoints=web
+      - traefik.http.services.hassio.loadbalancer.server.port=8123
+      - traefik.http.routers.hassio.middlewares=redirector@file
+      - traefik.http.routers.hassio-secure.rule=Host(`${HASSIOHOST}`)
+      - traefik.http.routers.hassio-secure.entrypoints=websecure
+      - traefik.http.routers.hassio-secure.tls.certresolver=certresolver
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true
+
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto:latest
+    volumes:
+    - /srv/mosquitto/config:/mosquitto/config
+    - /srv/mosquitto/log:/mosquitto/log
+    - /srv/mosquitto/data/:/mosquitto/data
+    restart: unless-stopped
+    ports:
+    - 1883:1883 
+    labels:
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true
+
+  zigbee2mqtt:
+    container_name: zigbee2mqtt
+    image: koenkk/zigbee2mqtt
+    volumes:
+    - ./zigbee2mqtt:/app/data
+    devices:
+    - "/dev/ttyACM0"
+    environment:
+    - TZ=${TZ}
+    network_mode: host
+    restart: always
+    labels:
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true

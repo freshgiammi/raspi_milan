@@ -1,0 +1,25 @@
+version: "3"
+
+services:
+  minecraft:
+      image: itzg/minecraft-server
+      container_name: minecraft-server
+      restart: unless-stopped
+      ports: 
+          - 25565:25565
+      environment: 
+          EULA: "TRUE"
+          TYPE: "PAPER"
+          OVERRIDE_SERVER_PROPERTIES: "true"
+          MOTD: "SIUUUUUUM GRANDE SCUBETTATA"
+          JVM_DD_OPTS: "disable.watchdog:true"
+          ENABLE_AUTOPAUSE: "TRUE"
+          MEMORY: "750m"
+          MAX_TICK_TIME: "-1"
+      volumes: 
+          - ./minecraft_data:/data
+      env_file: 
+          - .minecraft_env
+      labels:
+        ## Allow WatchTower to update this container.
+        - com.centurylinklabs.watchtower.enable=true

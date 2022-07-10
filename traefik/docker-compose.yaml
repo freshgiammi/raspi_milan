@@ -1,0 +1,70 @@
+version: "3"
+
+services:  
+  traefik:
+    # The official v2 Traefik docker image
+    image: traefik:latest
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      # If you have no idea what is going on, feel free to press the ultimate panic button and watch the logs.
+      # - --log.level=DEBUG
+      # Enables the web UI, remember to bind 8080 to ONLY localhost like in ports section, to access use a ssh tunnel.
+      - --api.insecure=true
+      # Setting the level of the logs from traefik
+      - --log.level=DEBUG 
+      #- --api.dashboard=true # <== Enabling the dashboard to view services, middlewares, routers, etc...
+      #- --api.debug=true # <== Enabling additional endpoints for debugging and profiling
+      # Tells Traefik to listen to docker, forbidding the container exposure by default.
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      # Referring to a dynamic configuration file
+      - --providers.file.filename=/config/dynamic.yaml 
+      # Enable listening only to the given network, needs to be set below and for consistency reasons must be created beforehand.
+      - --providers.docker.network=traefik
+      # Decides which ports traefik should use, and name the entrypoints.
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Sets up the HTTP->HTTPS redirect for EVERY application, this could have some issues in some deployments. 
+      # - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      # - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      # Letsencrypt configuration, this sets up two different resolvers for letsencrypt, deploy first with the staging one, if
+      # you get a valid certificate from the staging, switch to the official. This is done so traefik doesn't trigger the
+      # certificate limit (which is a pain in the ass)
+      - --certificatesresolvers.certresolver-staging.acme.email=rengucci.gianmarco@gmail.com
+      - --certificatesresolvers.certresolver-staging.acme.storage=/etc/certs/acme-staging.json
+      - --certificatesresolvers.certresolver-staging.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.certresolver-staging.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --certificatesresolvers.certresolver.acme.email=rengucci.gianmarco@gmail.com
+      - --certificatesresolvers.certresolver.acme.storage=/etc/certs/acme.json
+      #- --certificatesresolvers.certresolver.acme.tlschallenge=true
+      - --certificatesresolvers.certresolver.acme.httpchallenge.entrypoint=web
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true
+    ports:
+      # The HTTP port
+      - 80:80
+      # The HTTPS port
+      - 443:443
+      # The Web UI (enabled by --api.insecure=true), if you want to access 8080 from local network, remove the '127.0.0.1:'.
+      # Be careful to NOT SHARE the port outside the local network, you will have a very bad time.
+      - 8081:8080
+    volumes:
+      # So that Traefik can listen to the Docker events, visit https://doc.traefik.io/traefik/providers/docker/#docker-api-access
+      # to know what is this about and what actually can be done to streghten the security.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # I could have done a volume for this, but actually this helps if you have aleready a certificate and you want to easily
+      # install it in te traefik instance. Visit https://doc.traefik.io/traefik/https/tls/#user-defined for more info.
+      - ./ssl_cert:/etc/certs # <== Volume for certs (TLS)
+      - ./traefik_conf:/config # <== Volume for dynamic conf file
+    extra_hosts: 
+      - host.docker.internal:172.17.0.1
+    networks:
+      # Attach the traefik container to the default network (which is the global "gateway" network)
+      - default
+
+
+networks:
+  default:
+    external:
+      name: traefik_proxy

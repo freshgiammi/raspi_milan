@@ -1,0 +1,35 @@
+version: "3"
+
+volumes:
+  vw_data:
+
+services:
+  bitwarden:
+    container_name: bitwarden
+    image: vaultwarden/server:latest
+    volumes:
+      - vw_data:/data
+    environment:
+      SIGNUPS_ALLOWED: 'true'
+      LOG_FILE: '/data/bitwarden.log'
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      ## 80 Rules
+      - traefik.http.routers.bitwarden.rule=Host(`${HOST}`) && (PathPrefix(`/bitwarden`))
+      - traefik.http.routers.bitwarden.entrypoints=web
+      - traefik.http.routers.bitwarden.middlewares=chain-regex-prefix@file
+      ## 443 Rules
+      - traefik.http.routers.bitwarden-secure.rule=Host(`${HOST}`) && (PathPrefix(`/bitwarden`))
+      - traefik.http.routers.bitwarden-secure.entrypoints=websecure
+      - traefik.http.routers.bitwarden-secure.middlewares=chain-regex-prefix@file
+      - traefik.http.routers.bitwarden-secure.tls.certresolver=certresolver
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true
+    networks: 
+      - default
+
+networks:
+  default:
+    external:
+      name: traefik_proxy

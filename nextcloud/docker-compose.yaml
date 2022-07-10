@@ -1,0 +1,94 @@
+version: "3"
+
+volumes:
+  nextcloud_db:
+  redis_nc:
+
+services:
+  nextcloud_db:
+    image: postgres
+    container_name: nextcloud_db
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - POSTGRES_DB=${NC_PG}
+      - POSTGRES_USER=${NC_PG_USER}
+      - POSTGRES_PASSWORD=${NC_PG_PASSWORD}
+    volumes:
+      - nextcloud_db:/var/lib/postgresql/data
+    networks:
+      - ncdb
+
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    restart: unless-stopped
+    depends_on:
+      - nextcloud_db
+      - redis_nc
+    volumes:
+      - ./nextcloud_data:/var/www/html
+      - /mnt/thenotorioussmall/Nextcloud:/var/www/html/data
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.nextcloud.rule=Host(`${HOST}`) && (PathPrefix(`/nextcloud`))
+      - traefik.http.routers.nextcloud.entrypoints=web
+      - traefik.http.routers.nextcloud.middlewares=chain-regex-prefix@file
+      - traefik.http.services.nextcloud.loadbalancer.server.port=80
+      - traefik.http.routers.nextcloud-secure.rule=Host(`${HOST}`) && (PathPrefix(`/nextcloud`))
+      - traefik.http.routers.nextcloud-secure.entrypoints=websecure
+      - traefik.http.middlewares.nc-rep.redirectregex.regex=https://(.*)/.well-known/(card|cal)dav
+      - traefik.http.middlewares.nc-rep.redirectregex.replacement=https://$$1/remote.php/dav/
+      - traefik.http.middlewares.nc-rep.redirectregex.permanent=true
+      # Headers
+      - traefik.http.middlewares.nc-header.headers.referrerPolicy=no-referrer
+      - traefik.http.middlewares.nc-header.headers.stsSeconds=31536000
+      - traefik.http.middlewares.nc-header.headers.forceSTSHeader=true
+      - traefik.http.middlewares.nc-header.headers.stsPreload=true
+      - traefik.http.middlewares.nc-header.headers.stsIncludeSubdomains=true
+      - traefik.http.middlewares.nc-header.headers.browserXssFilter=true
+      - traefik.http.middlewares.nc-header.headers.customRequestHeaders.X-Forwarded-Proto=https
+      - traefik.http.routers.nextcloud-secure.middlewares=chain-regex-prefix@file
+      - traefik.http.routers.nextcloud-secure.tls.certresolver=certresolver
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - POSTGRES_DB=${NC_PG}
+      - POSTGRES_USER=${NC_PG_USER}
+      - POSTGRES_PASSWORD=${NC_PG_PASSWORD}
+      - POSTGRES_HOST=nextcloud_db
+      - NEXTCLOUD_ADMIN_USER=${NC_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NC_PASSWORD}
+      - REDIS_HOST=redis_nc
+      - NEXTCLOUD_HOSTNAME=${HOST}    
+      - OVERWRITEWEBROOT=nextcloud
+      - OVERWRITEHOST=${HOST}
+      - OVERWRITEPROTOCOL=https
+      - NEXTCLOUD_TRUSTED_DOMAINS=${HOST}
+    networks: 
+      - default
+      - ncdb
+
+  redis_nc:
+    image: redis:latest
+    container_name: redis_nc
+    restart: always
+    networks:
+      - default
+      - ncdb
+    volumes:
+      - redis_nc:/var/lib/redis
+    labels:
+      ## Allow WatchTower to update this container.
+      - com.centurylinklabs.watchtower.enable=true
+
+networks:
+  default:
+    external:
+      name: traefik_proxy
+  ncdb:
+    internal: true

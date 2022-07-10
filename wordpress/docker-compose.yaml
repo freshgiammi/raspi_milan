@@ -1,0 +1,45 @@
+version: "3"
+
+volumes:
+  wordpress_db:
+
+services:
+  worpdressdb:
+    image: linuxserver/mariadb:latest
+    container_name: wordpressdb
+    restart: unless-stopped
+    #Somehow this crashes
+    #command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - MYSQL_ROOT_PASSWORD=${WP_MYSQL_PASSWORD}
+      - TZ=${TZ}
+      - MYSQL_DATABASE=${WP_MYSQL}
+      - MYSQL_USER=${WP_MYSQL_USER}
+      - MYSQL_PASSWORD=${WP_MYSQL_PASSWORD}
+    volumes:
+      - wordpress_db:/var/lib/mysql
+
+  adminer:
+    image: adminer:latest
+    container_name: adminer
+    restart: unless-stopped
+    ports:
+      - 8888:8080
+
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_HOST: worpdressdb:3306
+      WORDPRESS_DB_USER: ${WP_MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${WP_MYSQL_PASSWORD}
+      WORDPRESS_DB_NAME: ${WP_MYSQL}
+      WORDPRESS_DEBUG: 1
+    volumes:
+        - ./wordpress_dev:/var/www/html
+    ports:
+      - 81:80
+    #2z4eE(15#vW!cBmOB*
